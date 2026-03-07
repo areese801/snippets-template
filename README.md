@@ -218,9 +218,35 @@ fzf --preview 'cat {}'
 rg "^tags:.*dbt" --type md
 ```
 
-### Claude Desktop MCP Integration
+### Claude for Desktop MCP Integration
 
-To enable Claude to read snippets directly, add the MCP Filesystem server to your `claude_desktop_config.json`:
+This repository is designed for deep integration with [Claude for Desktop](https://claude.ai/download) via the [MCP Filesystem server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem). Once connected, Claude can read, search, and manage your snippets directly — no copy-paste required.
+
+#### How It Works
+
+Claude uses two capabilities together:
+
+1. **MCP Filesystem** — Gives Claude direct read access to `.md` files in the repo so it can read `CLAUDE.md`, inspect frontmatter, and retrieve snippet content.
+2. **Script-driven CRUD** — For write operations (add, edit, audit), Claude calls the `.scripts/` Python scripts, which handle UUID generation, git commits, and metadata validation.
+
+This means Claude can both *find* and *manage* your snippets in a single session.
+
+#### Step 1: Prerequisites
+
+The MCP Filesystem server is delivered via `npx` — no separate install needed. Verify Node.js is available:
+
+```bash
+node --version  # Should be v18+
+```
+
+#### Step 2: Configure Claude for Desktop
+
+Edit (or create) your Claude Desktop config file:
+
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add a `snippets` entry under `mcpServers`, pointing to the **absolute path** of this repository:
 
 ```json
 {
@@ -237,12 +263,60 @@ To enable Claude to read snippets directly, add the MCP Filesystem server to you
 }
 ```
 
-Restart Claude Desktop after adding this configuration.
+Replace `/path/to/your/snippets` with the actual path (e.g. `/Users/yourname/projects/snippets`).
 
-**Example prompts for Claude:**
-- "Search my snippets for dbt incremental patterns"
-- "Show me all Python snippets tagged with 'api'"
-- "Find shell scripts for database backups"
+If you have other MCP servers already configured, add `snippets` alongside them inside the existing `mcpServers` object.
+
+#### Step 3: The CLAUDE.md Integration Guide
+
+This repository includes a `CLAUDE.md` file that Claude reads automatically at the start of each session. It teaches Claude:
+
+- The frontmatter schema and what each field means
+- How to use the `.scripts/` CRUD system (`add.py`, `search.py`, `edit.py`, `audit.py`, `get.py`)
+- How to avoid duplicates, validate metadata, and commit safely
+- Workflow patterns for common operations
+
+Review `CLAUDE.md` and update any paths or workflow notes to match your setup before connecting Claude.
+
+#### Step 4: Restart Claude for Desktop
+
+Fully quit and relaunch Claude for Desktop after editing the config. The `snippets` filesystem server should appear as a connected tool.
+
+#### Step 5: Orient Claude at the Start of Each Session
+
+Begin your conversation by pointing Claude to the orientation files:
+
+```
+You are helping manage my personal snippets repo. Please read
+/path/to/your/snippets/CLAUDE.md and /path/to/your/snippets/README.md
+to get your bearings.
+```
+
+After that, Claude will use the scripts and conventions in `CLAUDE.md` for all operations in the session.
+
+> **Tip:** Add this instruction to a Claude Project's system prompt so you don't have to repeat it every conversation. Set the project context once and every new chat starts already oriented.
+
+#### Example Prompts
+
+```
+# Find snippets
+"Do I have any snippets for flock file locking?"
+"Show me all my SQL snippets tagged with 'dbt'"
+"Find shell scripts related to backups"
+
+# Retrieve and print snippet content
+"Get my QA data load snippet and print it"
+"Show me all my QA query snippets"
+
+# Add snippets
+"Save this Python function as a snippet — tag it api and retry"
+"Add the code I just wrote to my snippets repo"
+
+# Maintain snippets
+"Check my snippets for any metadata issues"
+"Update the description on my flock snippet"
+"Add the tag 'reviewed' to the cinch-qa-locations snippet"
+```
 
 ## System Paradigm
 
@@ -289,11 +363,15 @@ Menu-driven access to all snippet operations.
 ```
 
 **Menu Options:**
-- [1] Add new snippet
-- [2] Search snippets
-- [3] Edit snippet
-- [4] Audit metadata
-- [5] Repository stats
+- [a] Add new snippet
+- [s] Search snippets
+- [e] Edit snippet
+- [d] Delete snippet
+- [r] Recent snippets
+- [b] Browse all
+- [t] Tag management
+- [u] Audit metadata
+- [i] Info/stats
 - [q] Quit
 
 ### `get.py` (or `get`) - Quick Snippet Access
