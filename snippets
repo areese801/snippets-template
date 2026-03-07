@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# Snippets TUI - Quick launcher
+#
+# Usage: ./snippets
+#
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# Use venv Python if available, otherwise system Python
+if [ -x "${SCRIPT_DIR}/venv/bin/python3" ]; then
+    exec "${SCRIPT_DIR}/venv/bin/python3" "${SCRIPT_DIR}/.scripts/snippets_tui.py" "$@"
+else
+    exec python3 "${SCRIPT_DIR}/.scripts/snippets_tui.py" "$@"
+fi

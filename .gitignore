@@ -1,0 +1,44 @@
+# OS Files
+.DS_Store
+*:Zone.Identifier
+
+# Editor Files
+*.swp
+*~
+.vscode/
+.idea/
+.fleet/
+.zed/
+
+# Working Files
+TODO.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+venv/
+.venv/
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# Scripts temp files
+.scripts/*.log
+.scripts/*.tmp
+.scripts/*.tmp.txt
+
+# Environment and secrets
+.env
+*.ini
+*_config.json
+
+# Template-specific ignores (added by sync-template.sh)
+# This file should not exist in the template, but ignore it just in case
+sync-template.sh
+CLAUDE-TEMPLATE.md
