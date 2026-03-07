@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Retrieve snippets by UUID for quick clipboard access.
 

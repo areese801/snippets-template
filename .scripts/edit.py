@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Edit metadata and code for existing snippets.
 
@@ -48,9 +47,10 @@ from common import (
     log_info, log_success, log_warn, log_error,
     get_today, normalize_tag, suggest_tags,
     parse_frontmatter, serialize_frontmatter, update_frontmatter_field,
-    get_repo_root, find_snippet_files, git_add, git_commit,
-    validate_frontmatter, SUPPORTED_LANGUAGES, Colors, get_menu_choice,
-    copy_to_clipboard, delete_snippet, open_in_finder, duplicate_snippet
+    get_repo_root, find_all_snippets, git_add, git_commit,
+    validate_frontmatter, SUPPORTED_LANGUAGES, Colors,
+    get_menu_choice, copy_to_clipboard, delete_snippet, open_in_finder,
+    duplicate_snippet
 )
 
 
@@ -62,11 +62,7 @@ def select_file_interactive() -> Optional[Path]:
         Selected file path or None if cancelled
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets()
 
     if not all_files:
         log_error("No snippet files found")
@@ -440,10 +436,11 @@ def programmatic_edit(file_path: Path, updates: Dict[str, Any]) -> Dict[str, Any
     # Auto-migrate schema
     metadata, was_migrated = migrate_schema(metadata)
 
-    # Apply updates
+    # Apply updates (allow both existing and valid schema fields)
+    VALID_FIELDS = {'id', 'title', 'language', 'tags', 'description', 'created', 'last_updated', 'reviewed'}
     fields_updated = []
     for field, value in updates.items():
-        if field in metadata:
+        if field in metadata or field in VALID_FIELDS:
             metadata[field] = value
             fields_updated.append(field)
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Snippets Repository Manager - Unified Terminal Interface.
 
@@ -27,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from common import (
     log_info, log_success, log_warn, log_error,
-    get_repo_root, find_snippet_files, parse_frontmatter,
+    get_repo_root, find_all_snippets, parse_frontmatter,
     Colors, get_menu_choice, get_recent_snippets, delete_snippet,
     open_in_finder, get_all_tags, rename_tag, merge_tags, remove_tag,
     copy_to_clipboard, serialize_frontmatter
@@ -70,12 +69,7 @@ def get_repository_stats() -> dict:
     Returns:
         Dictionary with stats
     """
-    repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets()
 
     stats = {
         'total': len(all_files),
@@ -88,7 +82,7 @@ def get_repository_stats() -> dict:
             metadata, _ = parse_frontmatter(content)
             lang = metadata.get('language', 'unknown')
             stats['by_language'][lang] = stats['by_language'].get(lang, 0) + 1
-        except:
+        except Exception:
             continue
 
     return stats
@@ -268,11 +262,7 @@ def delete_snippet_menu():
     print()
 
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets()
 
     if not all_files:
         log_error("No snippet files found")
@@ -306,7 +296,7 @@ def delete_snippet_menu():
             content = file.read_text(encoding='utf-8')
             metadata, _ = parse_frontmatter(content)
             title = metadata.get('title', 'Untitled')
-        except:
+        except Exception:
             title = 'Untitled'
         print(f"  [{i}] {rel_path}")
         print(f"      {Colors.CYAN}{title}{Colors.NC}")
@@ -343,7 +333,7 @@ def delete_snippet_menu():
                 print(f"\n  {Colors.CYAN}Preview:{Colors.NC}")
                 for line in lines:
                     print(f"    {line[:60]}{'...' if len(line) > 60 else ''}")
-            except:
+            except Exception:
                 pass
 
             # Require explicit y confirmation
@@ -480,7 +470,7 @@ def recent_snippet_actions(snippet: dict):
                 content = file_path.read_text(encoding='utf-8')
                 metadata, _ = parse_frontmatter(content)
                 snippet['metadata'] = metadata
-            except:
+            except Exception:
                 pass
         elif choice == 'o':
             if open_in_finder(file_path):
@@ -515,11 +505,7 @@ def browse_all_menu():
     print()
 
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets()
 
     if not all_files:
         print(f"{Colors.YELLOW}No snippets found{Colors.NC}")
@@ -554,7 +540,7 @@ def browse_all_menu():
                 content = file_path.read_text(encoding='utf-8')
                 metadata, _ = parse_frontmatter(content)
                 title = metadata.get('title', file_path.stem)
-            except:
+            except Exception:
                 title = file_path.stem
             print(f"  [{letter}] {file_path.name}")
             print(f"      {title}")
@@ -870,7 +856,7 @@ def info_stats_menu():
             lines = [line.strip() for line in result.stdout.split('\n') if ':' in line]
             for line in lines[:10]:
                 print(f"  {line}")
-    except:
+    except Exception:
         print(f"  {Colors.YELLOW}Unable to fetch tag statistics{Colors.NC}")
 
     input("\n\nPress Enter to return to main menu...")

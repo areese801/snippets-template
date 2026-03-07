@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Search snippets by tags, language, description, title, or code content.
 
@@ -49,7 +48,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from common import (
     log_info, log_success, log_warn, log_error,
-    get_repo_root, find_snippet_files, parse_frontmatter,
+    get_repo_root, find_all_snippets, parse_frontmatter,
     Colors, copy_to_clipboard
 )
 
@@ -150,15 +149,9 @@ def search_snippets(filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         List of matching snippet dictionaries
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     results = []
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, code = parse_frontmatter(content)
@@ -193,22 +186,15 @@ def list_all_tags() -> Dict[str, int]:
     Returns:
         Dictionary of tag -> count
     """
-    repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     tag_counter = Counter()
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, _ = parse_frontmatter(content)
             tags = metadata.get('tags', [])
             tag_counter.update(tags)
-        except:
+        except Exception:
             continue
 
     return dict(tag_counter)

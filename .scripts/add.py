@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Add a new code snippet to the repository.
 
@@ -34,7 +33,8 @@ from common import (
     log_info, log_success, log_warn, log_error,
     get_today, slugify, normalize_tag, suggest_tags,
     detect_language, get_language_directory, serialize_frontmatter,
-    get_repo_root, git_add, git_commit, validate_frontmatter,
+    get_repo_root, git_add, git_commit, git_get_short_hash,
+    validate_frontmatter,
     SUPPORTED_LANGUAGES, Colors, strip_code_fences, generate_uuid
 )
 
@@ -296,18 +296,7 @@ def create_snippet_file(data: Dict[str, Any], output_format: str = 'human') -> D
             if git_commit(commit_msg):
                 log_success("Committed to git")
                 committed = True
-                # Get commit hash
-                import subprocess
-                try:
-                    result = subprocess.run(
-                        ['git', 'rev-parse', '--short', 'HEAD'],
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    commit_hash = result.stdout.strip()
-                except:
-                    pass
+                commit_hash = git_get_short_hash()
             else:
                 log_warn("Failed to commit (file staged)")
         else:

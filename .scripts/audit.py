@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Audit snippet metadata for completeness and correctness.
 
@@ -43,10 +42,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from common import (
     log_info, log_success, log_warn, log_error,
-    get_repo_root, find_snippet_files, parse_frontmatter,
-    serialize_frontmatter, validate_frontmatter, validate_date,
-    suggest_tags, get_today, normalize_tag, generate_uuid,
-    SUPPORTED_LANGUAGES, Colors, git_add, git_commit
+    get_repo_root, find_snippet_files, find_all_snippets,
+    parse_frontmatter, serialize_frontmatter, validate_frontmatter,
+    validate_date, suggest_tags, get_today, normalize_tag,
+    generate_uuid, ensure_id_first,
+    SUPPORTED_LANGUAGES, EXCLUDED_FILES, Colors, git_add, git_commit
 )
 
 
@@ -122,11 +122,7 @@ def scan_all_snippets(directory: Optional[str] = None) -> Dict[str, Any]:
     else:
         search_path = repo_root
 
-    all_files = find_snippet_files(search_path, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets(search_path)
 
     total_snippets = 0
     snippets_with_issues = []
@@ -298,12 +294,7 @@ def migrate_schema_all(directory: Optional[str] = None) -> Dict[str, Any]:
     else:
         search_path = repo_root
 
-    all_files = find_snippet_files(search_path, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
+    all_files = find_all_snippets(search_path)
     migrated_files = []
 
     for file_path in all_files:
@@ -325,12 +316,7 @@ def migrate_schema_all(directory: Optional[str] = None) -> Dict[str, Any]:
 
             # Add 'id' field (UUID)
             if 'id' not in metadata:
-                # Rebuild metadata with id first for visibility
-                new_metadata = {'id': generate_uuid()}
-                for key, value in metadata.items():
-                    if key != 'id':
-                        new_metadata[key] = value
-                metadata = new_metadata
+                metadata = ensure_id_first(metadata)
                 updated = True
 
             if updated:
@@ -367,12 +353,7 @@ def add_uuids_all(directory: Optional[str] = None) -> Dict[str, Any]:
     else:
         search_path = repo_root
 
-    all_files = find_snippet_files(search_path, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
+    all_files = find_all_snippets(search_path)
     updated_files = []
 
     for file_path in all_files:
@@ -382,14 +363,9 @@ def add_uuids_all(directory: Optional[str] = None) -> Dict[str, Any]:
 
             # Check if UUID is missing
             if 'id' not in metadata or not metadata['id']:
-                # Generate and add UUID
-                new_uuid = generate_uuid()
-
                 # Rebuild metadata with id first (for visibility)
-                new_metadata = {'id': new_uuid}
-                for key, value in metadata.items():
-                    if key != 'id':
-                        new_metadata[key] = value
+                new_metadata = ensure_id_first(metadata)
+                new_uuid = new_metadata['id']
 
                 # Write updated content
                 updated_content = serialize_frontmatter(new_metadata) + "\n" + code

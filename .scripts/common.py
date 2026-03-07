@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Shared utilities for snippet management scripts.
 
@@ -14,6 +13,7 @@ This module provides common functionality used across all CRUD scripts:
 
 import re
 import subprocess
+import sys
 import uuid
 import yaml
 from datetime import datetime
@@ -38,49 +38,45 @@ class Colors:
     NC = '\033[0m'  # No Color
 
 
+def _log(color: str, message: str, file=None) -> None:
+    """
+    Base logging function with colored timestamp.
+
+    Args:
+        color: ANSI color code
+        message: Message to log
+        file: Output stream (default: stdout)
+    """
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"{color}[{timestamp}]{Colors.NC} {message}", file=file)
+
+
 def log_info(message: str) -> None:
     """
     Log informational message with blue timestamp.
-
-    Args:
-        message: Message to log
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{Colors.BLUE}[{timestamp}]{Colors.NC} {message}")
+    _log(Colors.BLUE, message)
 
 
 def log_success(message: str) -> None:
     """
     Log success message with green timestamp.
-
-    Args:
-        message: Message to log
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{Colors.GREEN}[{timestamp}]{Colors.NC} {message}")
+    _log(Colors.GREEN, message)
 
 
 def log_warn(message: str) -> None:
     """
     Log warning message with yellow timestamp.
-
-    Args:
-        message: Message to log
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{Colors.YELLOW}[{timestamp}]{Colors.NC} {message}")
+    _log(Colors.YELLOW, message)
 
 
 def log_error(message: str) -> None:
     """
     Log error message with red timestamp to stderr.
-
-    Args:
-        message: Message to log
     """
-    import sys
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"{Colors.RED}[{timestamp}]{Colors.NC} {message}", file=sys.stderr)
+    _log(Colors.RED, message, file=sys.stderr)
 
 
 # ============================================================================
@@ -408,6 +404,8 @@ SUPPORTED_LANGUAGES = [
     'sql', 'python', 'shell', 'yaml', 'toml', 'json', 'markdown', 'text'
 ]
 
+EXCLUDED_FILES = ['README.md', 'CLAUDE.md', 'CLAUDE-TEMPLATE.md', 'TODO.md']
+
 LANGUAGE_DIRECTORY_MAP = {
     'sql': 'sql',
     'python': 'python',
@@ -576,6 +574,21 @@ def find_snippet_files(directory: Path, pattern: str = "*.md") -> List[Path]:
     return files
 
 
+def find_all_snippets(directory: Optional[Path] = None) -> List[Path]:
+    """
+    Find all snippet files, excluding non-snippet files like README.md.
+
+    Args:
+        directory: Directory to search (defaults to repo root)
+
+    Returns:
+        List of snippet file paths (sorted by modification time, newest first)
+    """
+    root = directory or get_repo_root()
+    files = find_snippet_files(root, "*.md")
+    return [f for f in files if f.name not in EXCLUDED_FILES]
+
+
 # ============================================================================
 # Git Operations
 # ============================================================================
@@ -648,6 +661,23 @@ def git_status_clean() -> bool:
         return False
 
 
+def git_get_short_hash() -> Optional[str]:
+    """
+    Get the short hash of the current HEAD commit.
+
+    Returns:
+        Short commit hash string, or None on failure
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            capture_output=True, text=True, check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
 # ============================================================================
 # Date Operations
 # ============================================================================
@@ -693,6 +723,21 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
+def ensure_id_first(metadata: dict) -> dict:
+    """
+    Ensure metadata has an 'id' field and that it appears first.
+
+    Args:
+        metadata: Frontmatter metadata dictionary
+
+    Returns:
+        New dictionary with 'id' as first key
+    """
+    if 'id' not in metadata:
+        metadata['id'] = generate_uuid()
+    return {'id': metadata['id'], **{k: v for k, v in metadata.items() if k != 'id'}}
+
+
 def find_snippet_by_id(snippet_id: str) -> Optional[Path]:
     """
     Find a snippet file by its UUID.
@@ -703,14 +748,7 @@ def find_snippet_by_id(snippet_id: str) -> Optional[Path]:
     Returns:
         Path to the snippet file if found, None otherwise
     """
-    repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, _ = parse_frontmatter(content)
@@ -730,14 +768,8 @@ def get_all_snippet_ids() -> List[Dict[str, Any]]:
         List of dicts with 'id', 'title', 'file_path', 'relative_path'
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     results = []
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, _ = parse_frontmatter(content)
@@ -849,11 +881,7 @@ def get_recent_snippets(limit: int = 10) -> List[Dict[str, Any]]:
         List of snippet info dictionaries with metadata and file info
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
+    all_files = find_all_snippets()
 
     results = []
     for file_path in all_files[:limit]:
@@ -936,17 +964,7 @@ def delete_snippet(file_path: Path, commit: bool = True) -> Dict[str, Any]:
         commit_msg = f"chore({directory}): delete {filename.replace('.md', '')}"
         if git_commit(commit_msg):
             committed = True
-            # Get commit hash
-            try:
-                result = subprocess.run(
-                    ['git', 'rev-parse', '--short', 'HEAD'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                commit_hash = result.stdout.strip()
-            except subprocess.CalledProcessError:
-                pass
+            commit_hash = git_get_short_hash()
 
     return {
         'status': 'success',
@@ -1056,16 +1074,7 @@ def duplicate_snippet(source_path: Path, new_title: str) -> Dict[str, Any]:
         commit_msg = f"feat({source_path.parent.name}): duplicate {source_path.stem} as {new_path.stem}"
         if git_commit(commit_msg):
             committed = True
-            try:
-                result = subprocess.run(
-                    ['git', 'rev-parse', '--short', 'HEAD'],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                commit_hash = result.stdout.strip()
-            except subprocess.CalledProcessError:
-                pass
+            commit_hash = git_get_short_hash()
 
     repo_root = get_repo_root()
     return {
@@ -1090,16 +1099,9 @@ def get_all_tags() -> Dict[str, int]:
     Returns:
         Dictionary mapping tag names to count of snippets using them
     """
-    repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     tag_counts: Dict[str, int] = {}
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, _ = parse_frontmatter(content)
@@ -1125,17 +1127,11 @@ def rename_tag(old_tag: str, new_tag: str) -> Dict[str, Any]:
         Result dictionary with list of modified files
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     modified_files = []
     old_tag_normalized = normalize_tag(old_tag)
     new_tag_normalized = normalize_tag(new_tag)
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, code_body = parse_frontmatter(content)
@@ -1188,17 +1184,11 @@ def merge_tags(tags_to_merge: List[str], target_tag: str) -> Dict[str, Any]:
         Result dictionary with list of modified files
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     modified_files = []
     tags_to_merge_normalized = {normalize_tag(t) for t in tags_to_merge}
     target_tag_normalized = normalize_tag(target_tag)
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, code_body = parse_frontmatter(content)
@@ -1253,16 +1243,10 @@ def remove_tag(tag: str) -> Dict[str, Any]:
         Result dictionary with list of modified files
     """
     repo_root = get_repo_root()
-    all_files = find_snippet_files(repo_root, "*.md")
-
-    # Filter out non-snippet files
-    excluded_files = ['README.md', 'CLAUDE.md', 'TODO.md']
-    all_files = [f for f in all_files if f.name not in excluded_files]
-
     modified_files = []
     tag_normalized = normalize_tag(tag)
 
-    for file_path in all_files:
+    for file_path in find_all_snippets():
         try:
             content = file_path.read_text(encoding='utf-8')
             metadata, code_body = parse_frontmatter(content)

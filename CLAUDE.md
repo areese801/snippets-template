@@ -69,6 +69,20 @@ alias g='~/path/to/snippets/get'
 alias mysnippet='g 550e8400-e29b-41d4-a716-446655440000'
 ```
 
+## Python Execution
+
+**IMPORTANT**: When a `venv/` directory exists in the repository root, always use the fully qualified path to the Python interpreter inside the virtual environment rather than relying on `python` or `python3` being on `PATH`:
+
+```bash
+# Correct - use venv python directly
+./venv/bin/python .scripts/search.py --tag dbt --format json
+
+# Incorrect - may resolve to wrong interpreter or fail
+python .scripts/search.py --tag dbt --format json
+```
+
+The bash wrapper scripts (`get`, `search`, `snippets`) already handle venv activation, so this only applies when calling `.scripts/*.py` files directly.
+
 ## Claude Code Usage Patterns
 
 ### Adding Snippets Programmatically
