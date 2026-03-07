@@ -199,6 +199,8 @@ FROM source
 
 ## Usage
 
+![Searching snippets with Claude Code in neovim and tmux](.images/nvim-tmux-snippet.png)
+
 ### Command-Line Search
 
 **Find snippets by keyword:**
@@ -295,6 +297,10 @@ to get your bearings.
 After that, Claude will use the scripts and conventions in `CLAUDE.md` for all operations in the session.
 
 > **Tip:** Add this instruction to a Claude Project's system prompt so you don't have to repeat it every conversation. Set the project context once and every new chat starts already oriented.
+
+#### Example
+
+![Claude Desktop finding a snippet via MCP integration](.images/claude-desktop-snippet.png)
 
 #### Example Prompts
 
