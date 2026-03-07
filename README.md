@@ -99,6 +99,28 @@ This repository stores reusable code snippets organized by language, with struct
 └── .scripts/    # Automation scripts (extraction, review)
 ```
 
+### Language to Directory Mapping
+
+When you add a snippet, the `language` field determines which directory it's saved to:
+
+| Language | Directory |
+|----------|-----------|
+| `sql` | `sql/` |
+| `python` | `python/` |
+| `shell`, `bash`, `sh` | `shell/` |
+| `yaml`, `yml`, `toml`, `json` | `config/` |
+| `markdown`, `md`, `text`, `txt` | `prompts/` |
+
+**Adding a new language/directory:**
+
+1. Edit `.scripts/common.py`:
+   - Add to `SUPPORTED_LANGUAGES` list
+   - Add to `LANGUAGE_DIRECTORY_MAP` dictionary
+2. Create the directory: `mkdir <new-directory>`
+3. If using sync-template.sh, update it to include the new directory
+
+**Unknown languages:** If you use a language not in the map, it will warn but still create a directory named after that language (e.g., `rust` → `rust/`).
+
 ## Conventions
 
 ### One Concept Per File
