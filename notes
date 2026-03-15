@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+################################################################################
+# notes - Search and read Obsidian notes from the terminal
+#
+# Search notes across Obsidian vaults, read note contents, and list tags.
+#
+# USAGE:
+#   notes search <query>              # Search all vaults
+#   notes search <query> --context    # With matching lines
+#   notes read <name>                 # Read a note
+#   notes tags                        # List all tags
+#   notes tags --counts               # With occurrence counts
+#
+# EXAMPLES:
+#   notes search postgres
+#   notes search API rate limiting --vault "My Vault"
+#   notes read Meeting Notes
+#   notes tags --counts --sort count
+#
+# REQUIRES:
+#   Obsidian desktop app running with CLI enabled
+#   (Settings > General > CLI)
+################################################################################
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# Activate virtual environment if present
+if [ -f "${SCRIPT_DIR}/venv/bin/activate" ]; then
+    source "${SCRIPT_DIR}/venv/bin/activate"
+fi
+
+exec python "${SCRIPT_DIR}/.scripts/notes.py" "$@"
