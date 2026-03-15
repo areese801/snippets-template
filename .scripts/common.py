@@ -11,6 +11,7 @@ This module provides common functionality used across all CRUD scripts:
 - Tag normalization and suggestion
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -392,6 +393,15 @@ def validate_frontmatter(metadata: Dict[str, Any]) -> List[str]:
     if 'tags' in metadata:
         if not isinstance(metadata['tags'], list):
             errors.append(f"Tags must be a list, got: {type(metadata['tags'])}")
+
+    # Validate vars (should be list of strings)
+    if 'vars' in metadata:
+        if not isinstance(metadata['vars'], list):
+            errors.append(f"Vars must be a list, got: {type(metadata['vars'])}")
+        else:
+            for v in metadata['vars']:
+                if not isinstance(v, str):
+                    errors.append(f"Each var must be a string, got: {type(v)}")
 
     return errors
 
@@ -1230,6 +1240,72 @@ def merge_tags(tags_to_merge: List[str], target_tag: str) -> Dict[str, Any]:
         'count': len(modified_files),
         'committed': committed
     }
+
+
+# ============================================================================
+# Variable Interpolation
+# ============================================================================
+
+def interpolate_variables(
+    code: str,
+    declared_vars: List[str],
+    cli_vars: Dict[str, str]
+) -> Tuple[str, Dict[str, Tuple[str, str]], List[str]]:
+    """
+    Interpolate {{VAR}} placeholders in code.
+
+    Only variables listed in declared_vars are candidates for interpolation.
+    Resolution order: cli_vars > env vars > leave as-is.
+
+    Args:
+        code: Code string with {{VAR}} placeholders
+        declared_vars: List of variable names declared in frontmatter vars field
+        cli_vars: Dictionary of variable overrides from CLI --var flags
+
+    Returns:
+        Tuple of (interpolated_code, resolved_dict, unresolved_list)
+        resolved_dict maps var_name -> (value, source) where source is "flag" or "env"
+    """
+    resolved: Dict[str, Tuple[str, str]] = {}
+    unresolved: List[str] = []
+
+    result = code
+    for var_name in declared_vars:
+        placeholder = "{{" + var_name + "}}"
+        if placeholder not in result:
+            continue
+
+        if var_name in cli_vars:
+            result = result.replace(placeholder, cli_vars[var_name])
+            resolved[var_name] = (cli_vars[var_name], "flag")
+        elif var_name in os.environ:
+            result = result.replace(placeholder, os.environ[var_name])
+            resolved[var_name] = (os.environ[var_name], "env")
+        else:
+            unresolved.append(var_name)
+
+    return result, resolved, unresolved
+
+
+def find_undeclared_placeholders(code: str, declared_vars: List[str]) -> List[str]:
+    """
+    Scan code for {{UPPER_CASE}} patterns not listed in declared_vars.
+
+    Only matches uppercase/underscore names to distinguish from Jinja
+    expressions like {{ ref('stg_users') }}.
+
+    Args:
+        code: Code string to scan
+        declared_vars: List of already-declared variable names
+
+    Returns:
+        List of undeclared placeholder names found
+    """
+    pattern = r'\{\{([A-Z_][A-Z0-9_]*)\}\}'
+    found = set(re.findall(pattern, code))
+    declared_set = set(declared_vars)
+    undeclared = sorted(found - declared_set)
+    return undeclared
 
 
 def remove_tag(tag: str) -> Dict[str, Any]:

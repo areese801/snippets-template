@@ -228,6 +228,9 @@ def create_snippet_file(data: Dict[str, Any], output_format: str = 'human') -> D
         'last_updated': data.get('last_updated', get_today()),
     }
 
+    if data.get('vars'):
+        metadata['vars'] = data['vars']
+
     if data.get('reviewed') is not None:
         metadata['reviewed'] = data['reviewed']
 
@@ -351,6 +354,7 @@ Examples:
     parser.add_argument('--description', type=str, help='One-sentence description')
     parser.add_argument('--code', type=str, help='Code content')
     parser.add_argument('--code-file', type=str, help='Read code from file')
+    parser.add_argument('--vars', type=str, help='Comma-separated list of variable names for interpolation')
 
     # Options
     parser.add_argument('--no-commit', action='store_true', help='Skip git commit')
@@ -406,6 +410,9 @@ Examples:
         if not data['description']:
             log_error("Description is required in programmatic mode (--description)")
             sys.exit(1)
+
+        if args.vars:
+            data['vars'] = [v.strip() for v in args.vars.split(',') if v.strip()]
 
         data['id'] = generate_uuid()
         data['created'] = get_today()

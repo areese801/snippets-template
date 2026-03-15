@@ -31,11 +31,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 from common import (
     log_info, log_success, log_warn, log_error,
     find_snippet_by_id, get_all_snippet_ids, parse_frontmatter,
-    copy_to_clipboard, Colors, get_repo_root
+    copy_to_clipboard, Colors, get_repo_root,
+    interpolate_variables, find_undeclared_placeholders
 )
 
 
-def get_snippet_by_id(snippet_id: str, output_format: str = 'human', print_only: bool = False) -> dict:
+def get_snippet_by_id(
+    snippet_id: str,
+    output_format: str = 'human',
+    print_only: bool = False,
+    cli_vars: dict = None,
+    raw: bool = False
+) -> dict:
     """
     Retrieve snippet by UUID and optionally copy to clipboard.
 
@@ -43,10 +50,15 @@ def get_snippet_by_id(snippet_id: str, output_format: str = 'human', print_only:
         snippet_id: UUID of the snippet
         output_format: 'human' or 'json'
         print_only: If True, print to stdout instead of clipboard
+        cli_vars: Dictionary of variable overrides from --var flags
+        raw: If True, skip variable interpolation
 
     Returns:
         Result dictionary
     """
+    if cli_vars is None:
+        cli_vars = {}
+
     file_path = find_snippet_by_id(snippet_id)
 
     if not file_path:
@@ -65,6 +77,40 @@ def get_snippet_by_id(snippet_id: str, output_format: str = 'human', print_only:
             'error_type': 'parse_error',
             'message': f'Failed to parse snippet: {e}'
         }
+
+    # Variable interpolation
+    declared_vars = metadata.get('vars', [])
+    resolved_info = {}
+    unresolved_info = []
+
+    if declared_vars and not raw:
+        code, resolved_info, unresolved_info = interpolate_variables(
+            code, declared_vars, cli_vars
+        )
+
+        # Print resolution summary to stderr
+        parts = []
+        if resolved_info:
+            parts.append("Resolved: " + ", ".join(
+                f"{name} ({source})" for name, (_, source) in resolved_info.items()
+            ))
+        if unresolved_info:
+            parts.append("Unresolved: " + ", ".join(unresolved_info))
+        if parts:
+            for part in parts:
+                print(part, file=sys.stderr)
+
+    # Check for undeclared placeholders (even if no vars field or --raw)
+    if not raw:
+        undeclared = find_undeclared_placeholders(code, declared_vars)
+        if undeclared:
+            placeholder_list = ", ".join("{{" + name + "}}" for name in undeclared)
+            var_list = ", ".join(undeclared)
+            print(
+                f"Hint: Found {placeholder_list} in output but not in vars.\n"
+                f"  Add `vars: [{var_list}]` to frontmatter to enable interpolation.",
+                file=sys.stderr
+            )
 
     repo_root = get_repo_root()
     relative_path = str(file_path.relative_to(repo_root))
@@ -150,6 +196,10 @@ Examples:
                         help='Print code to stdout instead of copying to clipboard')
     parser.add_argument('--list', '-l', action='store_true',
                         help='List all snippet IDs')
+    parser.add_argument('--var', action='append', metavar='NAME=VALUE',
+                        help='Variable override for interpolation (repeatable)')
+    parser.add_argument('--raw', action='store_true',
+                        help='Skip variable interpolation, output code as-is')
     parser.add_argument('--format', choices=['human', 'json'], default='human',
                         help='Output format (default: human)')
 
@@ -178,7 +228,16 @@ Examples:
     if not args.uuid:
         parser.error("UUID required. Use --list to see all IDs.")
 
-    result = get_snippet_by_id(args.uuid, args.format, args.print_only)
+    # Parse --var flags into dict
+    cli_vars = {}
+    if args.var:
+        for var_str in args.var:
+            if '=' not in var_str:
+                parser.error(f"Invalid --var format: '{var_str}'. Use NAME=VALUE.")
+            name, value = var_str.split('=', 1)
+            cli_vars[name] = value
+
+    result = get_snippet_by_id(args.uuid, args.format, args.print_only, cli_vars, args.raw)
 
     if args.format == 'json':
         print(json.dumps(result, indent=2))
