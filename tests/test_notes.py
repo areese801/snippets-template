@@ -92,6 +92,11 @@ class TestRunObsidianCmd:
             with pytest.raises(subprocess.TimeoutExpired):
                 run_obsidian_cmd(["search", 'query="test"'], timeout=5)
 
+    def test_binary_not_found(self):
+        with patch("subprocess.run", side_effect=FileNotFoundError):
+            with pytest.raises(RuntimeError, match="not found on PATH"):
+                run_obsidian_cmd(["vaults"])
+
 
 # ============================================================================
 # discover_vaults
@@ -500,3 +505,51 @@ class TestCLIIntegration:
                     )
                     assert result["status"] == "success"
                     assert "content" in result
+
+
+# ============================================================================
+# Malformed JSON handling
+# ============================================================================
+
+
+class TestMalformedJsonHandling:
+    @pytest.fixture
+    def mock_vaults(self):
+        return [
+            {"name": "Vault A", "path": "/tmp/a"},
+            {"name": "Vault B", "path": "/tmp/b"},
+        ]
+
+    def test_search_context_skips_malformed_json(self, mock_vaults):
+        """cmd_search with context=True gracefully skips vaults returning bad JSON."""
+
+        def fake_cmd(args, **kwargs):
+            if "vault=Vault A" in " ".join(args):
+                return "WARNING: not json at all {{"
+            return json.dumps(
+                [{"file": "note.md", "matches": [{"line": 1, "text": "hit"}]}]
+            )
+
+        with patch("notes.discover_vaults", return_value=mock_vaults):
+            with patch("notes.get_vault_ignore_filters", return_value=[]):
+                with patch("notes.run_obsidian_cmd", side_effect=fake_cmd):
+                    result = cmd_search("test", context=True)
+                    assert result["status"] == "success"
+                    # Only Vault B results should appear
+                    assert result["count"] == 1
+                    assert result["results"][0]["vault"] == "Vault B"
+
+    def test_tags_skips_malformed_json(self, mock_vaults):
+        """cmd_tags gracefully skips vaults returning bad JSON."""
+
+        def fake_cmd(args, **kwargs):
+            if "vault=Vault A" in " ".join(args):
+                return "not valid json"
+            return json.dumps([{"tag": "#python", "count": "3"}])
+
+        with patch("notes.discover_vaults", return_value=mock_vaults):
+            with patch("notes.run_obsidian_cmd", side_effect=fake_cmd):
+                result = cmd_tags()
+                assert result["status"] == "success"
+                assert result["count"] == 1
+                assert result["tags"][0]["name"] == "python"

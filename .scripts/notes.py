@@ -55,7 +55,13 @@ def run_obsidian_cmd(args: list[str], timeout: int = 30) -> str:
     Filters known stderr warnings. Raises on timeout or real errors.
     """
     cmd = [OBSIDIAN_BINARY] + args
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Obsidian CLI not found on PATH. "
+            "Enable it: Obsidian > Settings > General > CLI"
+        )
 
     # Filter known noise from stderr
     stderr_lines = result.stderr.strip().splitlines()
@@ -230,7 +236,11 @@ def cmd_search(
 
         if context:
             # Parse JSON array from search:context
-            entries = json.loads(output)
+            try:
+                entries = json.loads(output)
+            except json.JSONDecodeError:
+                log_warn(f"Skipping vault '{vault['name']}': malformed JSON response")
+                continue
             for entry in entries:
                 file_path = entry["file"]
                 if any(file_path.startswith(f) for f in ignore_filters):
@@ -331,7 +341,7 @@ def cmd_read(
     return {
         "status": "error",
         "error_type": "not_found",
-        "message": f"Note '{search_name}' not found in any vault. Try: ./notes search {search_name}",
+        "message": f"Note '{search_name}' not found in any vault. Try searching: ./notes search <query>",
     }
 
 
@@ -364,7 +374,11 @@ def cmd_tags(
         if not output:
             continue
 
-        entries = json.loads(output)
+        try:
+            entries = json.loads(output)
+        except json.JSONDecodeError:
+            log_warn(f"Skipping vault '{vault['name']}': malformed JSON response")
+            continue
         for entry in entries:
             tag_name = entry["tag"].lstrip("#")
             count = int(entry["count"])
