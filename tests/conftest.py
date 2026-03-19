@@ -106,7 +106,7 @@ def mock_repo_root(monkeypatch, snippet_repo):
     monkeypatch.setattr(common, "get_repo_root", lambda: snippet_repo)
 
     # Patch in every script module that imports get_repo_root
-    for mod_name in ["add", "edit", "get", "search", "audit", "snippets_tui"]:
+    for mod_name in ["add", "edit", "get", "search", "audit", "snippets_tui", "browse"]:
         try:
             mod = __import__(mod_name)
             if hasattr(mod, "get_repo_root"):

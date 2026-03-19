@@ -2,19 +2,33 @@
 
 Personal code snippets repository with YAML frontmatter for semantic search and MCP integration.
 
+## Purpose
+
+This repository stores reusable code snippets organized by language, with structured metadata for:
+
+- Fast searching via `fzf` and `ripgrep`
+- AI-powered semantic search via Claude Desktop MCP Filesystem server
+- Cross-session context preservation
+
 ## Quick Start
 
-### Quick Clipboard Access (Recommended)
+### Browse Snippets (Recommended)
+
+The fastest way to find a snippet. Fuzzy-match by title, language, or tags with a live preview:
 
 ```bash
-# Copy snippet to clipboard by UUID
-./get 550e8400-e29b-41d4-a716-446655440000
+browse                    # Browse all snippets
+browse --language sql     # Pre-filter to SQL only
+browse --tag dbt          # Pre-filter by tag
+```
 
-# List all snippet IDs
-./get --list
+![Browsing snippets with fzf and live preview](.images/fuzzy-browse-snippet.png)
 
-# Create shell aliases for frequently used snippets
-alias my-snippet='~/snippets/get 550e8400-e29b-41d4-a716-446655440000'
+### Quick Clipboard Access by UUID
+
+```bash
+get 550e8400-e29b-41d4-a716-446655440000       # Copy to clipboard
+get --list                                      # List all snippet IDs
 ```
 
 ### Using the TUI
@@ -35,7 +49,7 @@ source venv/bin/activate
   --description "API client" --code "import requests..."
 ```
 
-**Search snippets:**
+**Search snippets (structured/programmatic):**
 
 ```bash
 .scripts/search.py --tag dbt --tag incremental      # By tags
@@ -59,6 +73,8 @@ source venv/bin/activate
 ```
 
 ## Setup
+
+**Prerequisites:** Python 3.9+, git
 
 ### Install Dependencies
 
@@ -89,13 +105,32 @@ pip install -r requirements.txt
 chmod +x .scripts/*.py
 ```
 
-## Purpose
+### Shell Setup
 
-This repository stores reusable code snippets organized by language, with structured metadata for:
+The wrapper scripts (`browse`, `get`, `search`, `snippets`, `notes`) are designed to be run from anywhere. Add the repo to your `PATH` so you can call them without `./`:
 
-- Fast searching via `fzf` and `ripgrep`
-- AI-powered semantic search via Claude Desktop MCP Filesystem server
-- Cross-session context preservation
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$HOME/snippets:$PATH"
+```
+
+Or set up individual aliases:
+
+```bash
+# Core commands
+alias browse='~/snippets/browse'
+alias b='~/snippets/browse'        # Short alias for quick access
+alias get='~/snippets/get'
+alias g='~/snippets/get'
+alias search='~/snippets/search'
+alias s='~/snippets/search'
+alias notes='~/snippets/notes'
+alias snippets='cd ~/snippets && ./snippets'
+
+# One-shot aliases for frequently used snippets
+alias my-query='get 550e8400-e29b-41d4-a716-446655440000'
+alias my-script='get 123e4567-e89b-12d3-a456-426614174000'
+```
 
 ## Directory Structure
 
@@ -104,9 +139,9 @@ This repository stores reusable code snippets organized by language, with struct
 ├── sql/         # SQL queries, DDL, dbt models
 ├── python/      # Python functions, classes, utilities
 ├── shell/       # Bash/zsh scripts and one-liners
-├── prompts/     # AI prompts and templates
 ├── config/      # Config file snippets (YAML, TOML, JSON)
-└── .scripts/    # Automation scripts (extraction, review)
+├── prompts/     # AI prompts and templates (markdown, text)
+└── .scripts/    # Automation scripts
 ```
 
 ### Language to Directory Mapping
@@ -255,13 +290,13 @@ WHERE created_at > '{{START_DATE}}'
 ```bash
 # Env vars resolve automatically
 export SCHEMA=public
-./get <uuid> --print
+get <uuid> --print
 
 # Override with CLI flags
-./get <uuid> --var SCHEMA=staging --var START_DATE=2026-01-01
+get <uuid> --var SCHEMA=staging --var START_DATE=2026-01-01
 
 # Skip interpolation
-./get <uuid> --raw
+get <uuid> --raw
 ```
 
 **Stderr feedback:** When a snippet has `vars`, a resolution summary is printed to stderr (doesn't affect clipboard or piping):
@@ -281,24 +316,11 @@ Unresolved: START_DATE
 
 ### Command-Line Search
 
-**Find snippets by keyword:**
+For interactive browsing, use `browse` (see [Quick Start](#quick-start)). For raw text searches, `ripgrep` works well:
 
 ```bash
-cd ~/snippets
-rg -i "incremental" --type md
-```
-
-**Fuzzy find and preview:**
-
-```bash
-cd ~/snippets
-fzf --preview 'cat {}'
-```
-
-**Search within frontmatter:**
-
-```bash
-rg "^tags:.*dbt" --type md
+rg -i "incremental" --type md       # Find snippets by keyword
+rg "^tags:.*dbt" --type md          # Search within frontmatter
 ```
 
 ### Claude for Desktop MCP Integration
@@ -470,6 +492,25 @@ Menu-driven access to all snippet operations.
 - [i] Info/stats
 - [q] Quit
 
+### `browse.py` (or `browse`) - Interactive Snippet Browser
+
+Fuzzy-search and preview snippets interactively. Use `browse` when you're exploring ("I know I have something about flock..."). Use `search` when you need structured filtering or programmatic output.
+
+**Usage:**
+
+```bash
+browse                          # Browse all snippets
+browse --language sql           # Pre-filter to SQL only
+browse --tag dbt                # Pre-filter by tag (repeatable)
+browse --query "incremental"    # Start with a pre-filled query
+browse --print                  # Print to stdout instead of clipboard
+```
+
+**Dependencies:**
+
+- `fzf` — `brew install fzf`
+- `bat` (optional) — `brew install bat` for syntax-highlighted preview
+
 ### `get.py` (or `get`) - Quick Snippet Access
 
 Retrieve snippets by UUID and copy to clipboard. Supports [variable interpolation](#variable-interpolation) for template snippets.
@@ -478,36 +519,20 @@ Retrieve snippets by UUID and copy to clipboard. Supports [variable interpolatio
 
 ```bash
 # Copy snippet to clipboard
-./get 550e8400-e29b-41d4-a716-446655440000
-.scripts/get.py 550e8400-e29b-41d4-a716-446655440000
+get 550e8400-e29b-41d4-a716-446655440000
 
 # Print to stdout (for piping)
-./get 550e8400-e29b-41d4-a716-446655440000 --print
+get 550e8400-e29b-41d4-a716-446655440000 --print
 
 # With variable overrides (for snippets with vars field)
-./get 550e8400-e29b-41d4-a716-446655440000 --var SCHEMA=staging --var TABLE_NAME=users
+get 550e8400-e29b-41d4-a716-446655440000 --var SCHEMA=staging --var TABLE_NAME=users
 
 # Skip interpolation entirely
-./get 550e8400-e29b-41d4-a716-446655440000 --raw
+get 550e8400-e29b-41d4-a716-446655440000 --raw
 
 # List all snippet IDs
-./get --list
-.scripts/get.py --list --format json
-```
-
-**Shell Alias Pattern:**
-
-```bash
-# Add to ~/.zshrc for global access
-alias get='~/snippets/get'
-
-# Create one-shot aliases for frequently used snippets
-alias my-query='get 550e8400-e29b-41d4-a716-446655440000'
-alias my-script='get 123e4567-e89b-12d3-a456-426614174000'
-
-# Env vars fill in placeholders automatically
-export SCHEMA=public
-alias qa-query='~/snippets/get abc123-def456'
+get --list
+get --list --format json
 ```
 
 ### `add.py` - Create Snippets
@@ -663,6 +688,23 @@ Scan and fix metadata issues.
 - Invalid language
 - Malformed tags
 
+### `notes.py` (or `notes`) - Obsidian Notes Search
+
+Search and read Obsidian notes from the terminal. Wraps the [Obsidian CLI](https://github.com/Yakitrak/obsidian-cli) to query across multiple vaults.
+
+**Usage:**
+
+```bash
+notes search postgres                          # Search all vaults
+notes search "API rate limiting" --context     # With matching lines
+notes read "Meeting Notes"                     # Read a note by name
+notes tags --counts --sort count               # List tags with counts
+```
+
+**Dependencies:**
+
+- Obsidian CLI — `brew install yakitrak/yakitrak/obsidian`
+
 ## Git Workflow
 
 ### Committing Snippets
@@ -697,3 +739,7 @@ if [ ! -d "$HOME/snippets" ]; then
   git clone <your-repo-url> "$HOME/snippets"
 fi
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
