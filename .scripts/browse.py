@@ -117,6 +117,7 @@ def run_fzf(
         "--header", "Select a snippet (ESC to cancel)",
         "--ansi",
         "--no-mouse",
+        "--height=100%",
     ]
 
     if query:
