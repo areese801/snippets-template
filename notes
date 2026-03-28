@@ -2,24 +2,29 @@
 ################################################################################
 # notes - Search and read Obsidian notes from the terminal
 #
-# Search notes across Obsidian vaults, read note contents, and list tags.
+# With no subcommand, launches an interactive fzf browser over all vaults.
+# With a subcommand, routes to the appropriate handler.
 #
 # USAGE:
-#   notes search <query>              # Search all vaults
-#   notes search <query> --context    # With matching lines
-#   notes read <name>                 # Read a note
+#   notes                             # Browse all notes with fzf
+#   notes --vault "My Vault"          # Browse notes in a specific vault
+#   notes --print                     # Browse, then render selected to stdout
+#   notes search <query>              # Search then browse results with fzf
+#   notes read <name>                 # Read a note's contents
 #   notes tags                        # List all tags
 #   notes tags --counts               # With occurrence counts
 #
 # EXAMPLES:
+#   notes
 #   notes search postgres
 #   notes search API rate limiting --vault "My Vault"
 #   notes read Meeting Notes
 #   notes tags --counts --sort count
 #
 # REQUIRES:
-#   Obsidian desktop app running with CLI enabled
-#   (Settings > General > CLI)
+#   - fzf (brew install fzf) for browse mode
+#   - Obsidian desktop app running with CLI enabled
+#     (Settings > General > CLI)
 ################################################################################
 
 set -euo pipefail
@@ -31,4 +36,17 @@ if [ -f "${SCRIPT_DIR}/venv/bin/activate" ]; then
     source "${SCRIPT_DIR}/venv/bin/activate"
 fi
 
-exec python "${SCRIPT_DIR}/.scripts/notes.py" "$@"
+# Route based on first argument
+case "${1:-}" in
+    read|tags)
+        exec python "${SCRIPT_DIR}/.scripts/notes.py" "$@"
+        ;;
+    search)
+        # Search routes to fzf browse with pre-filtered results
+        exec python "${SCRIPT_DIR}/.scripts/notes_browse.py" "$@"
+        ;;
+    *)
+        # No subcommand or flags only — launch fzf browse
+        exec python "${SCRIPT_DIR}/.scripts/notes_browse.py" "$@"
+        ;;
+esac
