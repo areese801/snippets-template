@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "snippets": {
+      "command": "./mcp_server.sh"
+    }
+  }
+}

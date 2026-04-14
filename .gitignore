@@ -13,6 +13,7 @@
 # Working Files
 TODO.md
 docs/
+.agent/
 
 # Python
 __pycache__/
@@ -39,6 +40,9 @@ wheels/
 .env
 *.ini
 *_config.json
+
+# Snippet content synced from source repo (not part of template)
+prompts/
 
 # Template-specific ignores (added by sync-template.sh)
 # This file should not exist in the template, but ignore it just in case

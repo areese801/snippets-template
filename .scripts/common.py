@@ -415,6 +415,7 @@ SUPPORTED_LANGUAGES = [
 ]
 
 EXCLUDED_FILES = ['README.md', 'CLAUDE.md', 'CLAUDE-TEMPLATE.md', 'TODO.md']
+EXCLUDED_DIRS = {'venv', '.venv', '.git', '.scripts', '__pycache__', 'node_modules'}
 
 LANGUAGE_DIRECTORY_MAP = {
     'sql': 'sql',
@@ -576,7 +577,10 @@ def find_snippet_files(directory: Path, pattern: str = "*.md") -> List[Path]:
     Returns:
         List of matching file paths (sorted by modification time, newest first)
     """
-    files = list(directory.rglob(pattern))
+    files = [
+        f for f in directory.rglob(pattern)
+        if not any(part in EXCLUDED_DIRS for part in f.parts)
+    ]
 
     # Sort by modification time (newest first)
     files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
@@ -1252,10 +1256,14 @@ def interpolate_variables(
     cli_vars: Dict[str, str]
 ) -> Tuple[str, Dict[str, Tuple[str, str]], List[str]]:
     """
-    Interpolate {{VAR}} placeholders in code.
+    Interpolate {{VAR}} and {{VAR:default}} placeholders in code.
 
     Only variables listed in declared_vars are candidates for interpolation.
-    Resolution order: cli_vars > env vars > leave as-is.
+    Resolution order: cli_vars > env vars > default value > leave as-is.
+
+    Supports two placeholder formats:
+        {{VAR}}              - no default, left as-is if unresolved
+        {{VAR:default_value}} - uses default_value if no cli/env override
 
     Args:
         code: Code string with {{VAR}} placeholders
@@ -1264,25 +1272,43 @@ def interpolate_variables(
 
     Returns:
         Tuple of (interpolated_code, resolved_dict, unresolved_list)
-        resolved_dict maps var_name -> (value, source) where source is "flag" or "env"
+        resolved_dict maps var_name -> (value, source) where source is
+        "flag", "env", or "default"
     """
     resolved: Dict[str, Tuple[str, str]] = {}
     unresolved: List[str] = []
 
     result = code
     for var_name in declared_vars:
-        placeholder = "{{" + var_name + "}}"
-        if placeholder not in result:
+        # Match {{VAR:default}} (non-greedy on default value)
+        pattern = re.compile(r"\{\{" + re.escape(var_name) + r"(?::([^}]*))\}\}")
+        default_match = pattern.search(result)
+
+        # Also check for plain {{VAR}}
+        plain_placeholder = "{{" + var_name + "}}"
+        has_plain = plain_placeholder in result
+
+        if not default_match and not has_plain:
             continue
 
         if var_name in cli_vars:
-            result = result.replace(placeholder, cli_vars[var_name])
-            resolved[var_name] = (cli_vars[var_name], "flag")
+            value = cli_vars[var_name]
+            source = "flag"
         elif var_name in os.environ:
-            result = result.replace(placeholder, os.environ[var_name])
-            resolved[var_name] = (os.environ[var_name], "env")
+            value = os.environ[var_name]
+            source = "env"
+        elif default_match:
+            value = default_match.group(1)
+            source = "default"
         else:
             unresolved.append(var_name)
+            continue
+
+        # Replace all {{VAR:...}} variants for this var
+        result = pattern.sub(value, result)
+        # Replace plain {{VAR}} too
+        result = result.replace(plain_placeholder, value)
+        resolved[var_name] = (value, source)
 
     return result, resolved, unresolved
 

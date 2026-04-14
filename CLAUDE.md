@@ -173,22 +173,49 @@ The bash wrapper scripts (`get`, `search`, `snippets`) already handle venv activ
 └── .scripts/    # Automation scripts
 ```
 
-## MCP Filesystem Integration
+## MCP Server
 
-Enable Claude Desktop to read snippets directly:
+The snippets repository includes a purpose-built MCP server that exposes
+snippet operations as structured tools for Claude Desktop and Claude Code.
 
-**~/.config/Claude/claude_desktop_config.json:**
+**Server:** `.scripts/mcp_server.py` (FastMCP, stdio transport)
+**Wrapper:** `mcp_server.sh` (activates venv, launches server)
+
+### Available Tools (Read-Only)
+
+| Tool | Description |
+|------|-------------|
+| `search_snippets` | Find snippets by tags, language, terms, regex, or recency |
+| `get_snippet` | Retrieve full code + metadata by UUID |
+| `list_snippet_ids` | Browse all snippets with UUIDs, titles, languages |
+| `list_tags` | Discover all tags with usage counts |
+| `audit_snippets` | Health check for metadata issues |
+
+### Configuration
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
     "snippets": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/path/to/your/snippets"
-      ]
+      "command": "/path/to/your/snippets/mcp_server.sh"
     }
   }
 }
 ```
+
+**Claude Code** (`.mcp.json` in repo root):
+```json
+{
+  "mcpServers": {
+    "snippets": {
+      "command": "./mcp_server.sh"
+    }
+  }
+}
+```
+
+### Restarting
+
+- **Claude Desktop**: Restart the app
+- **Claude Code**: Use `/mcp` to manage MCP servers

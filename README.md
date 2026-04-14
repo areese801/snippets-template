@@ -7,7 +7,7 @@ Personal code snippets repository with YAML frontmatter for semantic search and 
 This repository stores reusable code snippets organized by language, with structured metadata for:
 
 - Fast searching via `fzf` and `ripgrep`
-- AI-powered semantic search via Claude Desktop MCP Filesystem server
+- AI-powered search via built-in MCP server (Claude Desktop and Claude Code)
 - Cross-session context preservation
 
 ## Quick Start
@@ -249,7 +249,12 @@ FROM source
 
 ### Variable Interpolation
 
-Snippets can act as templates with `{{VAR}}` placeholders. Add a `vars` field to frontmatter listing variable names eligible for interpolation:
+Snippets can act as templates with `{{VAR}}` placeholders. Add a `vars` field to frontmatter listing variable names eligible for interpolation.
+
+Two placeholder formats are supported:
+
+- `{{VAR}}` — replaced if a value is provided, left as-is otherwise
+- `{{VAR:default_value}}` — uses `default_value` if no override is provided
 
 ```markdown
 ---
@@ -263,7 +268,7 @@ created: "2026-03-12"
 last_updated: "2026-03-12"
 ---
 
-SELECT * FROM {{SCHEMA}}.{{TABLE_NAME}}
+SELECT * FROM {{SCHEMA:public}}.{{TABLE_NAME}}
 WHERE created_at > '{{START_DATE}}'
 ```
 
@@ -271,7 +276,8 @@ WHERE created_at > '{{START_DATE}}'
 
 1. CLI flag: `--var NAME=value`
 2. Environment variable: `os.environ['NAME']`
-3. Unresolved: left as `{{NAME}}` in output
+3. Default value: from `{{VAR:default}}` syntax in the snippet
+4. Unresolved: left as `{{NAME}}` in output
 
 **Creating a template snippet:**
 
@@ -323,83 +329,70 @@ rg -i "incremental" --type md       # Find snippets by keyword
 rg "^tags:.*dbt" --type md          # Search within frontmatter
 ```
 
-### Claude for Desktop MCP Integration
+### MCP Server Integration
 
-This repository is designed for deep integration with [Claude for Desktop](https://claude.ai/download) via the [MCP Filesystem server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem). Once connected, Claude can read, search, and manage your snippets directly — no copy-paste required.
+This repository includes a purpose-built [MCP](https://modelcontextprotocol.io/) server that exposes snippet operations as structured tools. Works with both Claude Desktop and Claude Code.
 
 #### How It Works
 
-Claude uses two capabilities together:
+The MCP server (`.scripts/mcp_server.py`) wraps the same Python functions used by the CLI scripts, exposing them as tools over stdio transport. Claude can search, retrieve, and audit snippets without reading raw files.
 
-1. **MCP Filesystem** — Gives Claude direct read access to `.md` files in the repo so it can read `CLAUDE.md`, inspect frontmatter, and retrieve snippet content.
-2. **Script-driven CRUD** — For write operations (add, edit, audit), Claude calls the `.scripts/` Python scripts, which handle UUID generation, git commits, and metadata validation.
+**Available tools:**
 
-This means Claude can both _find_ and _manage_ your snippets in a single session.
+| Tool | Description |
+|------|-------------|
+| `search_snippets` | Find snippets by tags, language, terms, regex, or recency |
+| `get_snippet` | Retrieve full code + metadata by UUID (with variable interpolation) |
+| `list_snippet_ids` | Browse all snippets with UUIDs, titles, languages |
+| `list_tags` | Discover all tags with usage counts |
+| `audit_snippets` | Health check for metadata issues |
 
-#### Step 1: Prerequisites
-
-The MCP Filesystem server is delivered via `npx` — no separate install needed. Verify Node.js is available:
+#### Step 1: Install Dependencies
 
 ```bash
-node --version  # Should be v18+
+source venv/bin/activate
+pip install -r requirements.txt   # Installs PyYAML + mcp SDK
 ```
 
-#### Step 2: Configure Claude for Desktop
+#### Step 2: Configure Claude Desktop
 
-Edit (or create) your Claude Desktop config file:
+Edit your Claude Desktop config file:
 
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-Add a `snippets` entry under `mcpServers`, pointing to the **absolute path** of this repository:
+Add a `snippets` entry under `mcpServers`:
 
 ```json
 {
   "mcpServers": {
     "snippets": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/path/to/your/snippets"
-      ]
+      "command": "/path/to/your/snippets/mcp_server.sh"
     }
   }
 }
 ```
 
-Replace `/path/to/your/snippets` with the actual path (e.g. `/Users/yourname/projects/snippets`).
+Replace `/path/to/your/snippets` with the absolute path to this repository.
 
-If you have other MCP servers already configured, add `snippets` alongside them inside the existing `mcpServers` object.
+#### Step 3: Configure Claude Code
 
-#### Step 3: The CLAUDE.md Integration Guide
+The repository includes a `.mcp.json` file that Claude Code picks up automatically. No additional configuration needed — just open a session in the repo directory.
 
-This repository includes a `CLAUDE.md` file that Claude reads automatically at the start of each session. It teaches Claude:
+#### Step 4: Restart and Verify
 
-- The frontmatter schema and what each field means
-- How to use the `.scripts/` CRUD system (`add.py`, `search.py`, `edit.py`, `audit.py`, `get.py`)
-- How to avoid duplicates, validate metadata, and commit safely
-- Workflow patterns for common operations
+- **Claude Desktop**: Fully quit and relaunch. The `snippets` tools should appear.
+- **Claude Code**: Start a new session or use `/mcp` to reload.
 
-Review `CLAUDE.md` and update any paths or workflow notes to match your setup before connecting Claude.
+You can also test manually:
 
-#### Step 4: Restart Claude for Desktop
+```bash
+# Verify server starts (Ctrl-C to quit)
+./mcp_server.sh
 
-Fully quit and relaunch Claude for Desktop after editing the config. The `snippets` filesystem server should appear as a connected tool.
-
-#### Step 5: Orient Claude at the Start of Each Session
-
-Begin your conversation by pointing Claude to the orientation files:
-
+# Interactive testing with MCP Inspector
+npx @modelcontextprotocol/inspector ./mcp_server.sh
 ```
-You are helping manage my personal snippets repo. Please read
-/path/to/your/snippets/CLAUDE.md and /path/to/your/snippets/README.md
-to get your bearings.
-```
-
-After that, Claude will use the scripts and conventions in `CLAUDE.md` for all operations in the session.
-
-> **Tip:** Add this instruction to a Claude Project's system prompt so you don't have to repeat it every conversation. Set the project context once and every new chat starts already oriented.
 
 #### Example
 
@@ -462,7 +455,7 @@ All operations prompt before committing (in interactive mode):
 
 ### AI-Friendly
 
-- **MCP Integration**: Expose via Filesystem MCP server
+- **MCP Integration**: Built-in MCP server with search, retrieval, and audit tools
 - **JSON Output**: All scripts support `--format json`
 - **Structured Metadata**: Searchable by AI agents
 - **Clear Conventions**: Consistent patterns across all scripts
