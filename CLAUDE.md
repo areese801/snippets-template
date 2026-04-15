@@ -42,6 +42,7 @@ title: "Descriptive title"
 language: "sql"
 tags: [tag1, tag2]
 vars: [SCHEMA, TABLE_NAME]  # Optional: variable names for interpolation
+runnable: true               # Optional: allow execution via --run (shell only)
 description: "One-sentence AI-searchable description"
 created: "2026-03-05"
 last_updated: "2026-03-05"  # Auto-updated by edit.py
@@ -122,6 +123,9 @@ The bash wrapper scripts (`get`, `search`, `snippets`) already handle venv activ
 
 # Print to stdout
 ./get 550e8400-e29b-41d4-a716-446655440000 --print
+
+# Run a shell snippet (requires language: shell and runnable: true)
+./get 550e8400-e29b-41d4-a716-446655440000 --run
 
 # With variable overrides (for snippets with vars field)
 ./get 550e8400-e29b-41d4-a716-446655440000 --var SCHEMA=staging --var TABLE_NAME=users

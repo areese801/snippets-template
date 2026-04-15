@@ -20,6 +20,8 @@ Usage:
     ./get.py 550e8400-e29b-41d4-a716-446655440000 --format json
 """
 
+import re
+import subprocess
 import sys
 import argparse
 import json
@@ -34,6 +36,187 @@ from common import (
     copy_to_clipboard, Colors, get_repo_root,
     interpolate_variables, find_undeclared_placeholders
 )
+
+
+# ============================================================================
+# Destructive Pattern Detection
+# ============================================================================
+
+DESTRUCTIVE_PATTERNS = [
+    # Shell patterns
+    (r'\brm\s+.*-[a-zA-Z]*r[a-zA-Z]*f', 'rm -rf (recursive force delete)'),
+    (r'\brm\s+.*-[a-zA-Z]*f[a-zA-Z]*r', 'rm -rf (recursive force delete)'),
+    (r'\brm\s+-rf\b', 'rm -rf (recursive force delete)'),
+    (r'\brm\s+-f\b', 'rm -f (force delete)'),
+    (r'\brm\s+-r\b', 'rm -r (recursive delete)'),
+    (r'\brm\s+--force\b', 'rm --force (force delete)'),
+    (r'\bmkfs\b', 'mkfs (format filesystem)'),
+    (r'\bdd\b.*\bof=', 'dd with of= (raw disk write)'),
+    (r'\bkill\s+-9\b', 'kill -9 (force kill)'),
+    (r'\bkillall\b', 'killall (kill processes by name)'),
+    (r'\bchmod\s+-R\b', 'chmod -R (recursive permission change)'),
+    (r'\bchown\s+-R\b', 'chown -R (recursive ownership change)'),
+    (r'\bgit\s+push\s+--force\b', 'git push --force'),
+    (r'\bgit\s+reset\s+--hard\b', 'git reset --hard'),
+    # SQL patterns (inside shell wrappers like psql -c, snowsql -q, etc.)
+    (r'\bDROP\s+(TABLE|DATABASE|SCHEMA|VIEW|INDEX)\b', 'DROP statement'),
+    (r'\bTRUNCATE\b', 'TRUNCATE statement'),
+    (r'\bDELETE\s+FROM\b', 'DELETE FROM statement'),
+    (r'\bALTER\s+TABLE\b.*\bDROP\b', 'ALTER TABLE ... DROP'),
+]
+
+
+def is_destructive(code: str) -> tuple:
+    """
+    Scan code for destructive patterns.
+
+    Args:
+        code: Shell code to scan
+
+    Returns:
+        Tuple of (is_destructive, matched_description)
+    """
+    for pattern, description in DESTRUCTIVE_PATTERNS:
+        if re.search(pattern, code, re.IGNORECASE):
+            return (True, description)
+    return (False, '')
+
+
+def run_snippet(
+    snippet_id: str,
+    cli_vars: dict = None,
+    raw: bool = False
+) -> dict:
+    """
+    Execute a shell snippet after safety checks and confirmation.
+
+    Args:
+        snippet_id: UUID of the snippet
+        cli_vars: Dictionary of variable overrides from --var flags
+        raw: If True, skip variable interpolation
+
+    Returns:
+        Result dictionary
+    """
+    if cli_vars is None:
+        cli_vars = {}
+
+    file_path = find_snippet_by_id(snippet_id)
+
+    if not file_path:
+        return {
+            'status': 'error',
+            'error_type': 'not_found',
+            'message': f'No snippet found with ID: {snippet_id}'
+        }
+
+    try:
+        content = file_path.read_text(encoding='utf-8')
+        metadata, code = parse_frontmatter(content)
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error_type': 'parse_error',
+            'message': f'Failed to parse snippet: {e}'
+        }
+
+    title = metadata.get('title', 'Untitled')
+
+    # Safety gate 1: Language guard
+    if metadata.get('language') != 'shell':
+        return {
+            'status': 'error',
+            'error_type': 'language_error',
+            'message': f"--run requires language: shell (got: {metadata.get('language', 'unset')})"
+        }
+
+    # Safety gate 2: Runnable check
+    if not metadata.get('runnable', False):
+        return {
+            'status': 'error',
+            'error_type': 'not_runnable',
+            'message': (
+                f"Snippet '{title}' is not marked as runnable. "
+                "Add 'runnable: true' to frontmatter to enable execution."
+            )
+        }
+
+    # Variable interpolation
+    declared_vars = metadata.get('vars', [])
+    if declared_vars and not raw:
+        code, resolved_info, unresolved_info = interpolate_variables(
+            code, declared_vars, cli_vars
+        )
+        parts = []
+        if resolved_info:
+            parts.append("Resolved: " + ", ".join(
+                f"{name} ({source})" for name, (_, source) in resolved_info.items()
+            ))
+        if unresolved_info:
+            parts.append("Unresolved: " + ", ".join(unresolved_info))
+        if parts:
+            for part in parts:
+                print(part, file=sys.stderr)
+
+    code_stripped = code.strip()
+
+    # Safety gate 3: Destructive check
+    destructive, matched = is_destructive(code_stripped)
+    if destructive:
+        return {
+            'status': 'error',
+            'error_type': 'destructive',
+            'message': (
+                f"Blocked: destructive pattern detected — {matched}. "
+                "Use --print to inspect the code instead."
+            )
+        }
+
+    # Safety gate 4: Confirmation prompt
+    print(f"\n{'='*60}", file=sys.stderr)
+    print(f"Snippet: {title}", file=sys.stderr)
+    print(f"{'='*60}", file=sys.stderr)
+    print(code_stripped, file=sys.stderr)
+    print(f"{'='*60}", file=sys.stderr)
+
+    if not sys.stdin.isatty():
+        return {
+            'status': 'error',
+            'error_type': 'no_tty',
+            'message': '--run requires an interactive terminal for confirmation'
+        }
+
+    try:
+        answer = input("Execute? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print(file=sys.stderr)
+        return {
+            'status': 'error',
+            'error_type': 'cancelled',
+            'message': 'Execution cancelled by user'
+        }
+
+    if answer != 'y':
+        return {
+            'status': 'error',
+            'error_type': 'cancelled',
+            'message': 'Execution cancelled by user'
+        }
+
+    # Safety gate 5: Execute
+    print(f"Running: {title}", file=sys.stderr)
+    result = subprocess.run(code_stripped, shell=True)
+
+    if result.returncode != 0:
+        print(f"Exit code: {result.returncode}", file=sys.stderr)
+
+    return {
+        'status': 'success',
+        'action': 'executed',
+        'id': snippet_id,
+        'title': title,
+        'exit_code': result.returncode
+    }
 
 
 def get_snippet_by_id(
@@ -180,6 +363,9 @@ Examples:
   # Print to stdout
   ./get.py 550e8400-e29b-41d4-a716-446655440000 --print
 
+  # Run a shell snippet
+  ./get.py 550e8400-e29b-41d4-a716-446655440000 --run
+
   # List all snippet IDs
   ./get.py --list
 
@@ -191,9 +377,14 @@ Examples:
     # Positional argument for UUID (optional if using --list)
     parser.add_argument('uuid', nargs='?', help='UUID of the snippet to retrieve')
 
+    # Mutually exclusive: --print vs --run
+    action_group = parser.add_mutually_exclusive_group()
+    action_group.add_argument('--print', '-p', action='store_true', dest='print_only',
+                              help='Print code to stdout instead of copying to clipboard')
+    action_group.add_argument('--run', '-r', action='store_true',
+                              help='Execute shell snippet (requires language: shell and runnable: true)')
+
     # Options
-    parser.add_argument('--print', '-p', action='store_true', dest='print_only',
-                        help='Print code to stdout instead of copying to clipboard')
     parser.add_argument('--list', '-l', action='store_true',
                         help='List all snippet IDs')
     parser.add_argument('--var', action='append', metavar='NAME=VALUE',
@@ -204,6 +395,10 @@ Examples:
                         help='Output format (default: human)')
 
     args = parser.parse_args()
+
+    # --format json + --run is an error
+    if args.run and args.format == 'json':
+        parser.error("--run cannot be used with --format json")
 
     # List mode
     if args.list:
@@ -236,6 +431,15 @@ Examples:
                 parser.error(f"Invalid --var format: '{var_str}'. Use NAME=VALUE.")
             name, value = var_str.split('=', 1)
             cli_vars[name] = value
+
+    # Run mode
+    if args.run:
+        result = run_snippet(args.uuid, cli_vars, args.raw)
+        if result['status'] == 'success':
+            sys.exit(result.get('exit_code', 0))
+        else:
+            log_error(result['message'])
+            sys.exit(1)
 
     result = get_snippet_by_id(args.uuid, args.format, args.print_only, cli_vars, args.raw)
 

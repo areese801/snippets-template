@@ -185,6 +185,7 @@ title: "Descriptive title for the snippet"
 language: "sql" # sql | python | shell | yaml | toml | markdown | text
 tags: [dbt, incremental] # Keywords for filtering and search
 vars: [SCHEMA, TABLE_NAME] # Optional: variable names for interpolation
+runnable: true # Optional: allow execution via --run (shell only)
 description: "One-sentence natural language description for AI semantic search"
 created: "2026-03-05" # YYYY-MM-DD format
 last_updated: "2026-03-05" # YYYY-MM-DD format (auto-updated by edit.py)
@@ -199,6 +200,7 @@ reviewed: true # Optional: set to true after human review
 - `language`: Primary language of the code (used for syntax highlighting and organization)
 - `tags`: Array of keywords for filtering (lowercase, hyphen-separated)
 - `vars`: Optional list of variable names for `{{VAR}}` placeholder interpolation (see [Variable Interpolation](#variable-interpolation))
+- `runnable`: Optional boolean that marks a shell snippet as executable via `get --run`. Only valid for `language: shell` snippets. Requires user confirmation before execution, and destructive patterns (rm -rf, DROP TABLE, etc.) are blocked.
 - `description`: Natural language explanation of what the snippet does (optimized for AI search)
 - `created`: Date snippet was added to the repository
 - `last_updated`: Date snippet was last modified (automatically updated by `edit.py`)
@@ -516,6 +518,9 @@ get 550e8400-e29b-41d4-a716-446655440000
 
 # Print to stdout (for piping)
 get 550e8400-e29b-41d4-a716-446655440000 --print
+
+# Run a shell snippet (requires language: shell and runnable: true)
+get 550e8400-e29b-41d4-a716-446655440000 --run
 
 # With variable overrides (for snippets with vars field)
 get 550e8400-e29b-41d4-a716-446655440000 --var SCHEMA=staging --var TABLE_NAME=users

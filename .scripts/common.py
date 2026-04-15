@@ -403,6 +403,11 @@ def validate_frontmatter(metadata: Dict[str, Any]) -> List[str]:
                 if not isinstance(v, str):
                     errors.append(f"Each var must be a string, got: {type(v)}")
 
+    # Validate runnable (should be boolean)
+    if 'runnable' in metadata:
+        if not isinstance(metadata['runnable'], bool):
+            errors.append(f"Runnable must be a boolean, got: {type(metadata['runnable'])}")
+
     return errors
 
 
