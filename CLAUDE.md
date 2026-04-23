@@ -23,11 +23,13 @@ This repository is designed for dual-mode operation:
 - `.scripts/edit.py` - Update metadata
 - `.scripts/audit.py` - Check metadata completeness
 - `.scripts/get.py` - Retrieve snippet by UUID
+- `.scripts/gist.py` - Publish snippets as GitHub Gists
 - `.scripts/snippets_tui.py` - Unified interface
 
 **Wrapper Scripts:**
 - `get` - Quick clipboard access by UUID
 - `search` - Search snippets
+- `gist` - Publish/manage GitHub Gists
 - `snippets` - Launch TUI
 
 **Common Module:**
@@ -43,6 +45,9 @@ language: "sql"
 tags: [tag1, tag2]
 vars: [SCHEMA, TABLE_NAME]  # Optional: variable names for interpolation
 runnable: true               # Optional: allow execution via --run (shell only)
+gist: true                    # Optional: opt-in for GitHub Gist publishing
+gist_id: 5b0e0062eb8e...     # Auto-written after first publish
+gist_url: https://gist.github.com/user/5b0e...  # Auto-written after first publish
 description: "One-sentence AI-searchable description"
 created: "2026-03-05"
 last_updated: "2026-03-05"  # Auto-updated by edit.py
@@ -137,6 +142,30 @@ The bash wrapper scripts (`get`, `search`, `snippets`) already handle venv activ
 ./get --list
 ```
 
+### Espanso Integration (Private Snippets via Public Shortcuts)
+
+If you use [espanso](https://espanso.org/) for text expansion and keep your
+dotfiles in a public repo, you can bind a short trigger (e.g. `~!cust`) to a
+proprietary snippet without exposing its contents. The public espanso config
+carries only the trigger and the snippet UUID; at expansion time espanso
+shells out to `get <uuid> --print`, which emits the snippet body from this
+private repo.
+
+```yaml
+# In your (public) espanso config
+- trigger: "~!cust"
+  replace: "{{snippet}}"
+  vars:
+    - name: snippet
+      type: shell
+      params:
+        cmd: "$HOME/path/to/snippets/get <uuid-here> --print"
+```
+
+The UUID is an opaque identifier that reveals nothing about the snippet,
+and the shell command expands to an empty string for anyone who lacks the
+private repo — so the pattern is safe to commit to a public dotfiles repo.
+
 ### Editing Snippets
 
 ```bash
@@ -145,6 +174,26 @@ The bash wrapper scripts (`get`, `search`, `snippets`) already handle venv activ
 
 # Update field
 .scripts/edit.py sql/snippet.md --update-field description --value "New description"
+```
+
+### Publishing as GitHub Gists
+
+```bash
+# Publish or update a single snippet
+./gist sql/my-query.md
+./gist 550e8400-e29b-41d4-a716-446655440000
+
+# Create as secret (unlisted) gist
+./gist sql/my-query.md --secret
+
+# Sync all gist-marked snippets
+./gist --all
+
+# Show publish status
+./gist --status
+
+# Dry run
+./gist --all --dry-run --format json
 ```
 
 ### Auditing Metadata

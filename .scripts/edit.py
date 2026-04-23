@@ -437,7 +437,7 @@ def programmatic_edit(file_path: Path, updates: Dict[str, Any]) -> Dict[str, Any
     metadata, was_migrated = migrate_schema(metadata)
 
     # Apply updates (allow both existing and valid schema fields)
-    VALID_FIELDS = {'id', 'title', 'language', 'tags', 'description', 'created', 'last_updated', 'reviewed'}
+    VALID_FIELDS = {'id', 'title', 'language', 'tags', 'description', 'created', 'last_updated', 'reviewed', 'gist', 'gist_id', 'gist_url'}
     fields_updated = []
     for field, value in updates.items():
         if field in metadata or field in VALID_FIELDS:

@@ -14,6 +14,7 @@
 TODO.md
 docs/
 .agent/
+.claude/
 
 # Python
 __pycache__/
@@ -41,10 +42,7 @@ wheels/
 *.ini
 *_config.json
 
-# Snippet content synced from source repo (not part of template)
-prompts/
-
 # Template-specific ignores (added by sync-template.sh)
-# This file should not exist in the template, but ignore it just in case
+# sync-template.sh should not exist in the template; ignored as belt-and-suspenders
 sync-template.sh
 CLAUDE-TEMPLATE.md
