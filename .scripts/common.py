@@ -408,6 +408,17 @@ def validate_frontmatter(metadata: Dict[str, Any]) -> List[str]:
         if not isinstance(metadata['runnable'], bool):
             errors.append(f"Runnable must be a boolean, got: {type(metadata['runnable'])}")
 
+    # Validate gist fields
+    if 'gist' in metadata:
+        if not isinstance(metadata['gist'], bool):
+            errors.append("gist must be a boolean")
+    if 'gist_id' in metadata:
+        if not isinstance(metadata['gist_id'], str) or not metadata['gist_id'].strip():
+            errors.append("gist_id must be a non-empty string")
+    if 'gist_url' in metadata:
+        if not isinstance(metadata['gist_url'], str) or not metadata['gist_url'].startswith('https://'):
+            errors.append("gist_url must be a valid HTTPS URL")
+
     return errors
 
 
@@ -420,7 +431,19 @@ SUPPORTED_LANGUAGES = [
 ]
 
 EXCLUDED_FILES = ['README.md', 'CLAUDE.md', 'CLAUDE-TEMPLATE.md', 'TODO.md']
-EXCLUDED_DIRS = {'venv', '.venv', '.git', '.scripts', '__pycache__', 'node_modules'}
+EXCLUDED_DIRS = {'venv', '.venv', '.git', '.scripts', '__pycache__', 'node_modules', '.template-assets', '.agent', '.claude', '.pytest_cache', '.images', 'tests'}
+
+LANGUAGE_EXTENSION_MAP = {
+    'sql': '.sql',
+    'python': '.py',
+    'shell': '.sh',
+    'yaml': '.yml',
+    'toml': '.toml',
+    'json': '.json',
+    'markdown': '.md',
+    'text': '.txt',
+}
+
 
 LANGUAGE_DIRECTORY_MAP = {
     'sql': 'sql',
@@ -437,6 +460,19 @@ LANGUAGE_DIRECTORY_MAP = {
     'text': 'prompts',
     'txt': 'prompts',
 }
+
+
+def get_language_extension(language: str) -> str:
+    """
+    Get the file extension for a language.
+
+    Args:
+        language: Language identifier
+
+    Returns:
+        File extension string (e.g., '.py'), defaults to '.txt' for unknown languages
+    """
+    return LANGUAGE_EXTENSION_MAP.get(language.lower(), '.txt')
 
 
 def get_language_directory(language: str, auto_create: bool = True) -> str:

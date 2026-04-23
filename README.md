@@ -186,6 +186,9 @@ language: "sql" # sql | python | shell | yaml | toml | markdown | text
 tags: [dbt, incremental] # Keywords for filtering and search
 vars: [SCHEMA, TABLE_NAME] # Optional: variable names for interpolation
 runnable: true # Optional: allow execution via --run (shell only)
+gist: true # Optional: opt-in for GitHub Gist publishing
+gist_id: 5b0e0062eb8e... # Auto-written after first publish
+gist_url: https://gist.github.com/... # Auto-written after first publish
 description: "One-sentence natural language description for AI semantic search"
 created: "2026-03-05" # YYYY-MM-DD format
 last_updated: "2026-03-05" # YYYY-MM-DD format (auto-updated by edit.py)
@@ -201,6 +204,9 @@ reviewed: true # Optional: set to true after human review
 - `tags`: Array of keywords for filtering (lowercase, hyphen-separated)
 - `vars`: Optional list of variable names for `{{VAR}}` placeholder interpolation (see [Variable Interpolation](#variable-interpolation))
 - `runnable`: Optional boolean that marks a shell snippet as executable via `get --run`. Only valid for `language: shell` snippets. Requires user confirmation before execution, and destructive patterns (rm -rf, DROP TABLE, etc.) are blocked.
+- `gist`: Optional boolean that opts a snippet in for GitHub Gist publishing via the `gist` command
+- `gist_id`: Auto-populated gist identifier after first publish (do not edit manually)
+- `gist_url`: Auto-populated gist URL after first publish (do not edit manually)
 - `description`: Natural language explanation of what the snippet does (optimized for AI search)
 - `created`: Date snippet was added to the repository
 - `last_updated`: Date snippet was last modified (automatically updated by `edit.py`)
@@ -419,8 +425,41 @@ npx @modelcontextprotocol/inspector ./mcp_server.sh
 # Maintain snippets
 "Check my snippets for any metadata issues"
 "Update the description on my flock snippet"
-"Add the tag 'reviewed' to the cinch-qa-locations snippet"
+"Add the tag 'reviewed' to my QA locations snippet"
 ```
+
+### Espanso Integration (Private Snippets Behind Public Shortcuts)
+
+If you use [espanso](https://espanso.org/) for text expansion and your dotfiles
+(which carry your espanso config) are public, you can still bind a short
+trigger like `~!cust` to a proprietary snippet — without the snippet's contents
+ever leaving this private repo.
+
+**The pattern:** the public espanso config holds only the trigger and the
+snippet's UUID. At expansion time, espanso shells out to `get <uuid> --print`,
+which emits the snippet body to stdout. The snippet itself stays private.
+
+```yaml
+# In your (public) espanso config
+- trigger: "~!cust"
+  replace: "{{snippet}}"
+  vars:
+    - name: snippet
+      type: shell
+      params:
+        cmd: "$HOME/projects/personal/snippets/get <uuid-here> --print"
+```
+
+**Why this is safe to commit publicly:**
+
+- The UUID is a random opaque identifier — it reveals nothing about the code.
+- The path (`$HOME/projects/personal/snippets`) points into the user's private
+  tree; anyone without that repo gets an empty expansion, not a leak.
+- All proprietary content (table names, schema, business logic) stays in this
+  private repo behind frontmatter and git history.
+
+**Typing workflow:** type `~!cust` in any editor → espanso runs `get <uuid>
+--print` → snippet body is inserted in place.
 
 ## System Paradigm
 
@@ -685,6 +724,31 @@ Scan and fix metadata issues.
 - Old schema (has `source`, missing `last_updated`)
 - Invalid language
 - Malformed tags
+
+### `gist.py` (or `gist`) - Publish as GitHub Gists
+
+Create, update, and teardown GitHub Gists from snippet files. Requires the `gh` CLI to be installed and authenticated.
+
+**Usage:**
+
+```bash
+./gist sql/my-query.md                        # Publish or update by path
+./gist 550e8400-...                           # Publish or update by UUID
+./gist sql/my-query.md --secret               # Create as secret (unlisted)
+./gist --all                                  # Sync all gist-marked snippets
+./gist --status                               # Show gist publish status
+./gist --all --dry-run                        # Preview what would happen
+./gist --format json                          # JSON output
+```
+
+**How it works:**
+1. Add `gist: true` to a snippet's frontmatter
+2. Run `./gist <file>` — creates a gist, writes `gist_id` and `gist_url` back to frontmatter
+3. Run again to update the gist with latest code
+4. Set `gist: false` and run `./gist --all` to delete the gist and strip tracking fields
+
+**Dependencies:**
+- `gh` CLI — `brew install gh` then `gh auth login`
 
 ### `notes.py` (or `notes`) - Obsidian Notes Search
 
